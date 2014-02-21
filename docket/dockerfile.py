@@ -46,22 +46,22 @@ class Dockerfile:
                         continue
                     if token == 'from':
                         self.parent = text
-                        continue
+                        line = "##" + line
                     if token == 'cmd':
                         if 'supervisord' in text:
                             print >> sys.stderr, "!! dropping supervisord invocation from {0}".format(self.path)
                         else:
                             self.cmd = text
-                        continue
+                        line = "##" + line
                     if token == 'entrypoint':
                         #self.entrypoint = text
-                        continue
+                        line = "##" + line
                     if token == 'add':
                         # rewrite line with qualified path
                         src, dst = text.split()
                         rewritten = join(self.path, src)
                         self.paths.append(rewritten)
-                        line = "ADD {0} {1}".format(rewritten, dst)
+                        line = "ADD {0} {1} #**".format(rewritten, dst)
                     if token == 'env':
                         self.env.append(text)
                     if token == 'volume':
