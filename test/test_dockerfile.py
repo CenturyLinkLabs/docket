@@ -17,19 +17,6 @@ class TestDockerfile(unittest.TestCase):
         self.assertEqual(self.dfile.command, 'python -V')
         
 
-class TestDockerfileFiles(unittest.TestCase):
-
-    def setUp(self):
-        self.dfile = Dockerfile("sample")
-        try: shutil.rmtree("tmp")
-        except: pass
-        os.makedirs("tmp")
-        
-    def test_extraction(self):
-        self.dfile.parse()
-        self.dfile.mirror_files(os.path.join(os.getcwd(), "tmp"))
-        #self.assertEqual(open("tmp/root/bashrc").read(), "hi\n")
-        
 
 class TestResolveFetch(unittest.TestCase):
 
