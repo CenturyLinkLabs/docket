@@ -14,4 +14,6 @@ analogous to npm + package.json for docker
 an alternative to forking/hacking existing Dockerfiles
 
 
+## dependencies
 
+python 2.6+, git in PATH
