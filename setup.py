@@ -36,6 +36,6 @@ setup(
         'Programming Language :: Python :: 3.2',
         'Programming Language :: Python :: 3.3',
         'Topic :: Utilities',
-        'License :: OSI Approved :: Apache Software License',
+        'License :: OSI Approved :: MIT Software License',
     ],
 )
