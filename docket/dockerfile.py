@@ -1,21 +1,11 @@
 import os
+import sys
 import string
 import json
-import contextlib
 import shutil
-from os.path import abspath, join, exists, basename, islink
+from os.path import abspath, join, exists, basename, dirname, islink
 
-@contextlib.contextmanager
-def chdir(path):
-    """A context manager which changes the working directory to the given
-    path, and then changes it back to its previous value on exit.
-
-    """
-    prev_cwd = os.getcwd()
-    os.chdir(path)
-    yield
-    os.chdir(prev_cwd)
-
+import util
 
 class Dockerfile:
     """
@@ -24,7 +14,10 @@ class Dockerfile:
     
     def __init__(self, path):
         self.path = path
-        self.name = basename(path) if '/' in path else path
+        if '/' in path:
+            self.name = basename(path) or basename(dirname(path))
+        else:
+            self.name = path
         for attr in ['from', 'cmd', 'entrypoint', 'env']:
             setattr(self, attr, None)
         self.lines = []
@@ -34,7 +27,7 @@ class Dockerfile:
         self.ports = []
 
     def parse(self):
-        with chdir(self.path):
+        with util.chdir(self.path):
             with open("Dockerfile") as f:
                 self.lines.append("\n\n########## {0}".format(self.name))
                 for line in map(string.strip, f.readlines()):
@@ -46,22 +39,23 @@ class Dockerfile:
                         continue
                     if token == 'from':
                         self.parent = text
-                        line = "##" + line
+                        #line = "##" + line
+                        continue
                     if token == 'cmd':
                         if 'supervisord' in text:
                             print >> sys.stderr, "!! dropping supervisord invocation from {0}".format(self.path)
                         else:
                             self.cmd = text
-                        line = "##" + line
+                        line = "#% " + line
                     if token == 'entrypoint':
-                        #self.entrypoint = text
-                        line = "##" + line
+                        self.entrypoint = text
+                        line = "#% " + line
                     if token == 'add':
                         # rewrite line with qualified path
                         src, dst = text.split()
                         rewritten = join(self.path, src)
                         self.paths.append(rewritten)
-                        line = "ADD {0} {1} #**".format(rewritten, dst)
+                        line = "ADD {0} {1}".format(rewritten, dst)
                     if token == 'env':
                         self.env.append(text)
                     if token == 'volume':
@@ -73,6 +67,17 @@ class Dockerfile:
 
     @property
     def command(self):
-        return " ".join(json.loads(self.cmd))
+        val = None
+        if self.cmd and self.entrypoint:
+            # use cmd?
+            val = self.cmd
+        elif self.cmd and not self.entrypoint:
+            val = self.cmd
+        elif self.entrypoint:
+            val = self.entrypoint
+        else:
+            val = self.cmd
+        if val:
+            return " ".join(json.loads(val))
                     
         

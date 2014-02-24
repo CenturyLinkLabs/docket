@@ -8,35 +8,31 @@ import contextlib
 from os import makedirs
 from os.path import exists, join, abspath, basename, dirname, islink
 
-from . import dockerfile
+import dockerfile
+import util
+import platforms
+
+__all__ = ['merge', 'generate']
 
 RELDIR = "library"
+ESPB_SCRIPT = "https://github.com/ack/espb/zipball/master"
+SUPERVISED = "RUN echo '[program:{0}]\\ncommand={1}\\n\\n' > /etc/supervisor/conf.d/{2}.conf"
 
-__all__ = ['merge']
-
-def merge(*refs):
+def merge(*refs, **kw):
     """pull/parse multiple dockerfiles, outputting to STDOUT """
-    files, parsed = [], []
-    # suck down any github refs
-    for ref in refs:
-        local = join(RELDIR, ref)
-        if not exists(local):
-            local = resolve(ref)
-        files.append(local)
-
-    workspace = join(os.getcwd(), RELDIR)
-    for path in files:
-        df = dockerfile.Dockerfile(path)
-        df.parse()
-        parsed.append(df)
-        #df.mirror_files(workspace)
-
+    refs = list(refs)
+    # resolve any remote references
+    files = expand(*refs)
+    # parse the dockerfiles
+    parsed = parse(files)
     # ensure we can proceed
     errors = validate(parsed)
     if errors:
         for err in errors:
             print >> sys.stderr, err
         sys.exit(10)
+
+    workspace = join(os.getcwd(), RELDIR)
 
     initial = parsed[0].parent
     print "########## docket intro"
@@ -48,21 +44,93 @@ def merge(*refs):
         for line in df.lines:
             print line
 
-    # assumed: user included some recipe that includes supervisor
-    # maybe we can just "RUN pip install supervisor"?
-    print "\n\n########## docket outro"
-    print "RUN mkdir -p /etc/supervisor/conf.d /var/log/supervisor"
-    print "RUN touch /etc/supervisor/supervisord.conf"
-    template = "RUN echo '[program:{0}]\\ncommand={1}\\n\\n' > /etc/supervisor/conf.d/{2}.conf"
-    for df in parsed:
-        if not df.cmd:
-            continue
-        print template.format(df.name, df.command, df.name)
-    print 'CMD ["/usr/bin/supervisord", "-n", "-c", "/etc/supervisor/supervisord.conf"]'
+    if not kw.get('unsupervised'):
+        print "\n\n########## docket outro"
+        print "RUN mkdir -p /etc/supervisor/conf.d /var/log/supervisor"
+        print "RUN touch /etc/supervisor/supervisord.conf"
+
+        for df in parsed:
+            startup = df.command
+            if not startup:
+                continue
+            print SUPERVISED.format(df.name, startup, df.name)
+
+        if kw.get('ssh'):
+            print SUPERVISED.format('ssh', '/usr/sbin/sshd -D', 'ssh')
+
+        print 'CMD ["supervisord", "-n", "-c", "/etc/supervisor/supervisord.conf"]'
 
 
-def validate(dfiles):
-    return []
+def generate(name, parent, **kw):
+    """
+    create a docket Dockerfile
+    """
+    path = join('library', name)
+    if exists(path):
+       error("dir/file at path {0} exists!".format(path))
+
+    override = None
+    try:
+        confpath = abspath("supervisord.conf")
+        open(confpath)
+    except IOError:
+        confpath = abspath(join(dirname(__file__), "supervisord.conf"))
+
+    os.makedirs(path)
+    with util.chdir(path):
+        shutil.copyfile(confpath, "supervisord.conf")
+
+        with open("Dockerfile", 'w') as f:
+            # this one (in practice) should be ignored
+            print >> f, "FROM {0}".format(parent)
+            # install supervisor and/or pip according to platform
+            for dep in platforms.dependencies(parent):
+                print >> f, "RUN {0}".format(dep)
+            print >> f, "RUN mkdir -p /etc/supervisor"
+            print >> f, "ADD supervisord.conf /etc/supervisor/supervisord.conf"
+            print >> f, "ENV ETCD http://172.17.42.1:4001"
+
+            if kw.get('inject'):
+                print >> f, "# injected service pooling script"
+                print >> f, "RUN pip install {0}".format(ESPB_SCRIPT)
+                print >> f, 'CMD ["/usr/local/bin/espb", "register", "{0}"]'.format(name)
+
+    print join(path, "Dockerfile")
+
+def expand(*refs):
+    """
+    convert refs from { github-ref / directory / uri }
+    to { local-directory }
+    """
+    files = []
+    for ref in refs:
+        if '.' == ref:
+            ref = abspath(ref)
+        local = join(RELDIR, ref)
+        if not exists(local):
+            local = resolve(ref)
+        files.append(local)
+    return files
+
+def parse(files):
+    parsed = []
+    for path in files:
+        df = dockerfile.Dockerfile(path)
+        df.parse()
+        parsed.append(df)
+    return parsed
+
+
+def validate(parsed):
+    errors = []
+    parents = ancestors(parsed)
+    if len(parents) > 1:
+        errors.append("Multiple ancestors detected: {0}".format(",".join(parents)))
+    return errors
+
+
+def ancestors(parsed):
+    return set([f.parent for f in parsed])
 
 
 def github(uri, outdir):
@@ -71,14 +139,14 @@ def github(uri, outdir):
     elif 'git@' in uri or 'git://' in uri:
         url = uri
     else:
-        url = "https://github.com/" + parsed.path
+        url = "https://github.com/" + uri
     out, err = subprocess.Popen(["git", "clone", url, outdir],
                                 stdout=subprocess.PIPE,
                                 stderr=subprocess.PIPE).communicate()
-    print out
+    print >> sys.stderr, out
     print >> sys.stderr, err
 
-    
+
 def resolve(ref):
     if exists(ref):
         # local directory already on disk
@@ -106,3 +174,8 @@ def resolve(ref):
         return target
     else:
         raise Exception("unknown path type: {0}".format(ref))
+
+
+def error(m, exit_code=1):
+    print >> sys.stderr, m
+    sys.exit(exit_code)
