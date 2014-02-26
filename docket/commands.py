@@ -92,7 +92,7 @@ def generate(name, parent, **kw):
 
             if kw.get('inject'):
                 print >> f, "# injected service pooling script"
-                print >> f, "RUN pip install {0}".format(ESPB_SCRIPT)
+                print >> f, "RUN which espb || pip install {0}".format(ESPB_SCRIPT)
                 print >> f, 'CMD ["/usr/local/bin/espb", "register", "{0}"]'.format(name)
 
     print join(path, "Dockerfile")

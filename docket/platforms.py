@@ -1,16 +1,16 @@
 
 COMMANDS = {
     'debian': [
-        'apt-get install -qy python-pip',
+        'which pip || apt-get install -qy python-pip',
         'apt-get install -qy supervisor'
         ],
     'redhat': [
-        'yum -y install python-setuptools',
-        'easy_install pip'
+        'which pip || (yum -y install python-setuptools && easy_install pip)',
         'sudo pip install supervisor'
         ],
     'unknown': [
-        'curl -s https://raw.github.com/pypa/pip/master/contrib/get-pip.py | python'
+        'which pip || curl -s https://raw.github.com/pypa/pip/master/contrib/get-pip.py | python',
+        'sudo pip install supervisor'
         ]
     }
 
