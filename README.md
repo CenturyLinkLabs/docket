@@ -22,7 +22,7 @@ composable/decomposable stack from Dockerfile building blocks.
 
 ## usage
 
-    $ pip install https://github.com/ack/docket/zipball/master
+    $ pip install https://github.com/CenturyLinkLabs/docket/zipball/master
 
     $ docket -h
     Usage: docket [options] <command> [args]
