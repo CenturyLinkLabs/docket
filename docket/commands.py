@@ -16,7 +16,7 @@ __all__ = ['merge', 'generate']
 
 RELDIR = "library"
 ESPB_SCRIPT = "https://github.com/ack/espb/zipball/master"
-SUPERVISED = "RUN echo '[program:{0}]\\ncommand={1}\\n\\n' > /etc/supervisor/conf.d/{2}.conf"
+SUPERVISED = 'RUN echo "[program:{0}]\\ncommand={1}\\n" > /etc/supervisor/conf.d/{2}.conf'
 
 def merge(*refs, **kw):
     """pull/parse multiple dockerfiles, outputting to STDOUT """
@@ -53,7 +53,7 @@ def merge(*refs, **kw):
             startup = df.command
             if not startup:
                 continue
-            print SUPERVISED.format(df.name, startup, df.name)
+            print SUPERVISED.format(df.name, startup.replace("\"", "\\\""), df.name).replace("'", "\'")
 
         if kw.get('ssh'):
             print SUPERVISED.format('ssh', '/usr/sbin/sshd -D', 'ssh')
