@@ -10,6 +10,10 @@ In tandem with [espb](https://github.com/ack/espb) build yourself a
 composable/decomposable stack from Dockerfile building blocks.
 
 
+## NOTE
+
+This repo is no longer being maintained. Users are welcome to fork it, but we make no warranty of its functionality.
+
 ## features
 
 
